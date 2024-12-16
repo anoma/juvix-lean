@@ -1,9 +1,9 @@
 
-import Lean.Data.AssocList
+import Batteries.Data.AssocList
 
 namespace Juvix.Core.Main
 
-open Lean
+open Batteries
 
 abbrev Name : Type := String
 

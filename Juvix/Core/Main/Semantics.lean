@@ -1,6 +1,7 @@
 
 import Juvix.Core.Main.Language
 import Mathlib.Tactic.CC
+import Aesop
 
 namespace Juvix.Core.Main
 
@@ -101,5 +102,32 @@ theorem Eval.deterministic {P ctx e v₁ v₂} (h₁ : Eval P ctx e v₁) (h₂ 
     cases h₂ <;> cc
   | eval_unit =>
     cases h₂ <;> cc
+
+-- The termination predicate for values. It is too strong for higher-order
+-- functions -- requires termination for all function arguments, even
+-- non-terminating ones.
+inductive Value.Terminating (P : Program) : Value → Prop where
+  | const {c} : Value.Terminating P (Value.const c)
+  | constr_app {ctr_name args_rev} :
+    Value.Terminating P (Value.constr_app ctr_name args_rev)
+  | closure {ctx body} :
+    (∀ v v',
+      Eval P (v :: ctx) body v' →
+      Value.Terminating P v') →
+    Value.Terminating P (Value.closure ctx body)
+  | unit : Value.Terminating P Value.unit
+
+def Expr.Terminating (P : Program) (ctx : Context) (e : Expr) : Prop :=
+  (∃ v, Eval P ctx e v ∧ Value.Terminating P v)
+
+def Program.Terminating (P : Program) : Prop :=
+  Expr.Terminating P [] P.main
+
+lemma Eval.Expr.Terminating {P ctx e v} :
+  Expr.Terminating P ctx e → Eval P ctx e v → Value.Terminating P v := by
+  intro h₁ h₂
+  rcases h₁ with ⟨v', hval, hterm⟩
+  rewrite [Eval.deterministic h₂ hval]
+  assumption
 
 end Juvix.Core.Main
