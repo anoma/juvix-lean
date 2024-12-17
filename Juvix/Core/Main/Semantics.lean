@@ -1,7 +1,6 @@
 
 import Juvix.Core.Main.Language
 import Mathlib.Tactic.CC
-import Aesop
 
 namespace Juvix.Core.Main
 
@@ -115,7 +114,7 @@ inductive Value.Terminating (P : Program) : Value → Prop where
     Value.Terminating P (Value.constr_app ctr_name args_rev)
   | closure {ctx body} :
     (∀ v v',
-      [P] (v :: ctx) ⊢ body ↦ v' →
+      [P] v :: ctx ⊢ body ↦ v' →
       Value.Terminating P v') →
     Value.Terminating P (Value.closure ctx body)
   | unit : Value.Terminating P Value.unit
