@@ -54,7 +54,10 @@ inductive Eval (P : Program) : Context → Expr → Value → Prop where
   | eval_unit {ctx} :
     Eval P ctx Expr.unit Value.unit
 
-theorem Eval.deterministic {P ctx e v₁ v₂} (h₁ : Eval P ctx e v₁) (h₂ : Eval P ctx e v₂) : v₁ = v₂ := by
+notation "[" P "] " ctx " ⊢ " e " ↦ " v:40 => Eval P ctx e v
+
+-- The evaluation relation is deterministic.
+theorem Eval.deterministic {P ctx e v₁ v₂} (h₁ : [P] ctx ⊢ e ↦ v₁) (h₂ : [P] ctx ⊢ e ↦ v₂) : v₁ = v₂ := by
   induction h₁ generalizing v₂ with
   | eval_var =>
     cases h₂ <;> cc
@@ -112,19 +115,19 @@ inductive Value.Terminating (P : Program) : Value → Prop where
     Value.Terminating P (Value.constr_app ctr_name args_rev)
   | closure {ctx body} :
     (∀ v v',
-      Eval P (v :: ctx) body v' →
+      [P] (v :: ctx) ⊢ body ↦ v' →
       Value.Terminating P v') →
     Value.Terminating P (Value.closure ctx body)
   | unit : Value.Terminating P Value.unit
 
 def Expr.Terminating (P : Program) (ctx : Context) (e : Expr) : Prop :=
-  (∃ v, Eval P ctx e v ∧ Value.Terminating P v)
+  (∃ v, [P] ctx ⊢ e ↦ v ∧ Value.Terminating P v)
 
 def Program.Terminating (P : Program) : Prop :=
   Expr.Terminating P [] P.main
 
 lemma Eval.Expr.Terminating {P ctx e v} :
-  Expr.Terminating P ctx e → Eval P ctx e v → Value.Terminating P v := by
+  Expr.Terminating P ctx e → [P] ctx ⊢ e ↦ v → Value.Terminating P v := by
   intro h₁ h₂
   rcases h₁ with ⟨v', hval, hterm⟩
   rewrite [Eval.deterministic h₂ hval]
