@@ -38,6 +38,8 @@ structure Program where
   defs : AssocList Name Expr
   main : Expr
 
+infixr:80 "@@" => Expr.app
+
 def Expr.mk_app (f : Expr) : List Expr → Expr
   | [] => f
   | x :: xs => Expr.mk_app (Expr.app f x) xs

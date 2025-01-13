@@ -53,10 +53,10 @@ inductive Eval (P : Program) : Context → Expr → Value → Prop where
   | eval_unit {ctx} :
     Eval P ctx Expr.unit Value.unit
 
-notation "[" P "] " ctx " ⊢ " e " ↦ " v:40 => Eval P ctx e v
+notation "⟨" P "⟩ " ctx " ⊢ " e " ↦ " v:40 => Eval P ctx e v
 
 -- The evaluation relation is deterministic.
-theorem Eval.deterministic {P ctx e v₁ v₂} (h₁ : [P] ctx ⊢ e ↦ v₁) (h₂ : [P] ctx ⊢ e ↦ v₂) : v₁ = v₂ := by
+theorem Eval.deterministic {P ctx e v₁ v₂} (h₁ : ⟨P⟩ ctx ⊢ e ↦ v₁) (h₂ : ⟨P⟩ ctx ⊢ e ↦ v₂) : v₁ = v₂ := by
   induction h₁ generalizing v₂ with
   | eval_var =>
     cases h₂ <;> cc
@@ -105,31 +105,58 @@ theorem Eval.deterministic {P ctx e v₁ v₂} (h₁ : [P] ctx ⊢ e ↦ v₁) (
   | eval_unit =>
     cases h₂ <;> cc
 
--- The termination predicate for values. It is too strong for higher-order
--- functions -- requires termination for all function arguments, even
--- non-terminating ones.
-inductive Value.Terminating (P : Program) : Value → Prop where
-  | const {c} : Value.Terminating P (Value.const c)
-  | constr_app {ctr_name args_rev} :
-    Value.Terminating P (Value.constr_app ctr_name args_rev)
-  | closure {ctx body} :
-    (∀ v v',
-      [P] v :: ctx ⊢ body ↦ v' →
-      Value.Terminating P v') →
-    Value.Terminating P (Value.closure ctx body)
-  | unit : Value.Terminating P Value.unit
+mutual
+  inductive Value.Equiv (P : Program) : Value → Value → Prop where
+    | const {c} : Value.Equiv P (Value.const c) (Value.const c)
+    | constr_app {ctr_name args_rev args_rev'} :
+      (∀ p ∈ List.zip args_rev args_rev', Value.Equiv P (Prod.fst p) (Prod.snd p)) →
+      Value.Equiv P (Value.constr_app ctr_name args_rev) (Value.constr_app ctr_name args_rev')
+    | closure {ctx₁ body₁ ctx₂ body₂} :
+      (∀ v v', ⟨P⟩ v :: ctx₁ ⊢ body₁ ↦ v' → Expr.EvalsToEquiv P (v :: ctx₂) body₂ v') →
+      (∀ v v', ⟨P⟩ v :: ctx₂ ⊢ body₂ ↦ v' → Expr.EvalsToEquiv P (v :: ctx₁) body₁ v') →
+      Value.Equiv P (Value.closure ctx₁ body₁) (Value.closure ctx₂ body₂)
+    | unit : Value.Equiv P Value.unit Value.unit
 
-def Expr.Terminating (P : Program) (ctx : Context) (e : Expr) : Prop :=
-  (∃ v, [P] ctx ⊢ e ↦ v ∧ Value.Terminating P v)
+  -- We need `Expr.EvalsToEquiv` in order to avoid existential quantification in
+  -- the definition of `Value.Equiv`.
+  inductive Expr.EvalsToEquiv (P : Program) : Context → Expr → Value → Prop where
+    | equiv {ctx e v v'} :
+      ⟨P⟩ ctx ⊢ e ↦ v' →
+      Value.Equiv P v v' →
+      Expr.EvalsToEquiv P ctx e v
+end
 
-def Program.Terminating (P : Program) : Prop :=
-  Expr.Terminating P [] P.main
+notation "⟨" P "⟩ " e " ≈ " e':40 => Value.Equiv P e e'
 
-lemma Eval.Expr.Terminating {P ctx e v} :
-  Expr.Terminating P ctx e → [P] ctx ⊢ e ↦ v → Value.Terminating P v := by
-  intro h₁ h₂
-  rcases h₁ with ⟨v', hval, hterm⟩
-  rewrite [Eval.deterministic h₂ hval]
-  assumption
+notation "⟨" P "⟩ " ctx " ⊢ " e " ↦≈ " v:40 => Expr.EvalsToEquiv P ctx e v
+
+def Expr.Equiv (P₁ : Program) (ctx₁ : Context) (e₁ : Expr) (P₂ : Program) (ctx₂ : Context) (e₂ : Expr) : Prop :=
+  (∀ v, ⟨P₁⟩ ctx₁ ⊢ e₁ ↦ v → ⟨P₂⟩ ctx₂ ⊢ e₂ ↦≈ v) ∧
+  (∀ v, ⟨P₂⟩ ctx₂ ⊢ e₂ ↦ v → ⟨P₁⟩ ctx₁ ⊢ e₁ ↦≈ v)
+
+notation "⟨" P₁ "⟩ " ctx₁ " ⊢ " e₁ " ≋ " "⟨" P₂ "⟩ " ctx₂ " ⊢ " e₂:40 => Expr.Equiv P₁ ctx₁ e₁ P₂ ctx₂ e₂
+
+def Program.Equiv (P₁ P₂ : Program) : Prop :=
+  ⟨P₁⟩ [] ⊢ P₁.main ≋ ⟨P₂⟩ [] ⊢ P₂.main
+
+notation "⟨" P₁ "⟩ " " ≋ " "⟨" P₂ "⟩" => Program.Equiv P₁ P₂
+
+theorem Value.Equiv.refl {P v} : Value.Equiv P v v :=
+  match v with
+  | Value.const c => Value.Equiv.const
+  | Value.constr_app ctr_name args_rev =>
+    let
+      prf : ∀ p ∈ List.zip args_rev args_rev, Value.Equiv P (Prod.fst p) (Prod.snd p) :=
+      by sorry
+    Value.Equiv.constr_app prf
+  | Value.closure ctx body =>
+    let
+      prf : ∀ v v', ⟨P⟩ v :: ctx ⊢ body ↦ v' → Expr.EvalsToEquiv P (v :: ctx) body v' :=
+      by
+      intros v v' h
+      apply Expr.EvalsToEquiv.equiv h
+      apply Value.Equiv.refl
+    Value.Equiv.closure prf prf
+  | Value.unit => Value.Equiv.unit
 
 end Juvix.Core.Main
