@@ -1,6 +1,7 @@
 
 import Juvix.Core.Main.Semantics.Eval
 import Juvix.Utils
+import Mathlib.Tactic.Linarith
 import Aesop
 
 namespace Juvix.Core.Main
@@ -8,14 +9,15 @@ namespace Juvix.Core.Main
 mutual
   @[aesop unsafe [constructors, cases]]
   inductive Value.Approx.Indexed (P : Program) : Nat → Value → Value → Prop where
-    | refl {n v} : Value.Approx.Indexed P n v v
+    | unit {n} : Value.Approx.Indexed P n Value.unit Value.unit
+    | const {n c} : Value.Approx.Indexed P n (Value.const c) (Value.const c)
     | constr_app {n ctr_name args_rev args_rev'} :
       args_rev.length = args_rev'.length →
-      (∀ p ∈ List.zip args_rev args_rev', Value.Approx.Indexed P n (Prod.fst p) (Prod.snd p)) →
-      Value.Approx.Indexed P (Nat.succ n) (Value.constr_app ctr_name args_rev) (Value.constr_app ctr_name args_rev')
+      (∀ k < n, ∀ p ∈ List.zip args_rev args_rev', Value.Approx.Indexed P k (Prod.fst p) (Prod.snd p)) →
+      Value.Approx.Indexed P n (Value.constr_app ctr_name args_rev) (Value.constr_app ctr_name args_rev')
     | closure {n ctx₁ body₁ ctx₂ body₂} :
-      (∀ v v₁, ⟨P⟩ v :: ctx₁ ⊢ body₁ ↦ v₁ → Expr.ApproxEvals.Indexed P n (v :: ctx₂) body₂ v₁) →
-      Value.Approx.Indexed P (Nat.succ n) (Value.closure ctx₁ body₁) (Value.closure ctx₂ body₂)
+      (∀ k < n, ∀ v v₁, ⟨P⟩ v :: ctx₁ ⊢ body₁ ↦ v₁ → Expr.ApproxEvals.Indexed P k (v :: ctx₂) body₂ v₁) →
+      Value.Approx.Indexed P n (Value.closure ctx₁ body₁) (Value.closure ctx₂ body₂)
 
   -- We need `Expr.ApproxEvals.Indexed` in order to avoid existential quantification in
   -- the definition of `Value.Approx.Indexed`.
@@ -28,10 +30,10 @@ mutual
 end
 
 def Value.Approx (P : Program) (v v' : Value) : Prop :=
-  ∃ n, Value.Approx.Indexed P n v v'
+  ∀ n, Value.Approx.Indexed P n v v'
 
 def Expr.ApproxEvals (P : Program) (ctx : Context) (e : Expr) (v : Value) : Prop :=
-  ∃ n, Expr.ApproxEvals.Indexed P n ctx e v
+  ∀ n, Expr.ApproxEvals.Indexed P n ctx e v
 
 notation "⟨" P "⟩ " e " ≲ " e':40 => Value.Approx P e e'
 
@@ -50,95 +52,125 @@ def Program.Equiv (P₁ P₂ : Program) : Prop :=
 
 notation "⟨" P₁ "⟩ " " ≋ " "⟨" P₂ "⟩" => Program.Equiv P₁ P₂
 
-lemma Value.Approx.Indexed.monotone {P n n' v v'} (h : Value.Approx.Indexed P n v v') (h' : n ≤ n') : Value.Approx.Indexed P n' v v' := by
-  induction n' generalizing n v v' with
+lemma Value.Approx.Indexed.refl {P n v} : Value.Approx.Indexed P n v v := by
+  revert n
+  suffices ∀ n, ∀ k ≤ n, Value.Approx.Indexed P k v v by
+    intro k
+    exact this k k k.le_refl
+  intro n
+  induction n generalizing v with
   | zero =>
-    cases h'
-    exact h
-  | succ n' ih =>
-    cases h'
-    case succ.refl =>
-      exact h
-    case succ.step h' =>
-      have ih' : Indexed P n' v v' := by
-        apply ih
-        case h =>
-          exact h
-        case h' =>
-          exact h'
-      cases ih'
-      case refl =>
-        exact Value.Approx.Indexed.refl
-      case constr_app n' ctr_name args_rev args_rev' ch =>
+    intros k hk
+    cases v
+    case unit =>
+      exact Value.Approx.Indexed.unit
+    case const c =>
+      exact Value.Approx.Indexed.const
+    case constr_app ctr_name args_rev =>
+      constructor
+      · rfl
+      · intros
+        have : k = 0 := by linarith
+        subst k
+        contradiction
+    case closure ctx body =>
+      constructor
+      · intros
+        have : k = 0 := by linarith
+        subst k
+        contradiction
+  | succ n ih =>
+    intros k hk
+    cases v
+    case unit =>
+      exact Value.Approx.Indexed.unit
+    case const c =>
+      exact Value.Approx.Indexed.const
+    case constr_app ctr_name args_rev =>
+      constructor
+      · rfl
+      · intros k' hk' p hp
+        have h : p.fst = p.snd := Utils.zip_refl_eq args_rev p hp
+        rw [h]
+        have : k' ≤ n := by linarith
         aesop
-      case closure n' ctx₁ body₁ ctx₂ body₂ ch =>
-        have : ∀ (v v' : Value), ⟨P⟩ v :: ctx₁ ⊢ body₁ ↦ v' → Expr.ApproxEvals.Indexed P n'.succ (v :: ctx₂) body₂ v' := by
-          intro v v' h''
-          have eh : Expr.ApproxEvals.Indexed P n' (v :: ctx₂) body₂ v' := by
-            apply ch
-            exact h''
-          rcases eh with ⟨_, h1, _⟩
-          constructor
-          exact h1
-          aesop
+    case closure ctx body =>
+      constructor
+      · intros k' hk' v v'
+        have : k' ≤ n := by linarith
         aesop
 
-lemma Value.Approx.Indexed.trans {P n v₁ v₂ v₃} (h₁ : Value.Approx.Indexed P n v₁ v₂) (h₂ : Value.Approx.Indexed P n v₂ v₃) : Value.Approx.Indexed P n v₁ v₃ := by
+lemma Value.Approx.Indexed.trans {P n v₁ v₂ v₃} : Value.Approx.Indexed P n v₁ v₂ → Value.Approx.Indexed P n v₂ v₃ → Value.Approx.Indexed P n v₁ v₃ := by
+  revert n
+  suffices ∀ n, ∀ k ≤ n, Indexed P k v₁ v₂ → Indexed P k v₂ v₃ → Value.Approx.Indexed P k v₁ v₃ by
+    intro k
+    exact this k k k.le_refl
+  intros n
   induction n generalizing v₁ v₂ v₃ with
   | zero =>
+    intros k hk h₁ h₂
     cases h₁
-    cases h₂
-    exact Value.Approx.Indexed.refl
+    case unit =>
+      cases h₂
+      case unit =>
+        exact Value.Approx.Indexed.unit
+    case const =>
+      cases h₂
+      case const =>
+        exact Value.Approx.Indexed.const
+    case constr_app ctr_name args_rev₁ args_rev₁' hlen₁ ch₁ =>
+      cases h₂
+      case constr_app args_rev₂ hlen₂ ch₂ =>
+        constructor <;> aesop
+    case closure ctx₁ body₁ ctx₁' body₁' ch₁ =>
+      cases h₂
+      case closure ctx₂ body₂ ch₂ =>
+        constructor
+        · intro k' hk' v v₁ h
+          have : k = 0 := by linarith
+          subst k
+          contradiction
   | succ n ih =>
+    intros k hk h₁ h₂
     cases h₁
-    case refl =>
-      exact h₂
+    case unit =>
+      cases h₂
+      case unit =>
+        exact Value.Approx.Indexed.unit
+    case const =>
+      cases h₂
+      case const =>
+        exact Value.Approx.Indexed.const
     case constr_app ctr_name args_rev args_rev' hlen₁ ch₁ =>
       cases h₂
-      case refl =>
-        exact Value.Approx.Indexed.constr_app hlen₁ ch₁
       case constr_app args_rev'' hlen₂ ch₂ =>
         constructor
         · aesop
-        · intro p hp
+        · intro k' hk' p hp
           obtain ⟨p₁, hp₁, p₂, hp₂, h₁, h₂, h₃⟩ := Utils.zip_ex_mid3 args_rev args_rev' args_rev'' p hlen₁ hlen₂ hp
+          have : k' ≤ n := by linarith
           aesop
     case closure ctx₁ body₁ ctx₂ body₂ ch₁ =>
       cases h₂
-      case refl =>
-        exact Value.Approx.Indexed.closure ch₁
       case closure ctx₃ body₃ ch₂ =>
         constructor
-        · intro v v₁ h
-          have eh : Expr.ApproxEvals.Indexed P n (v :: ctx₂) body₂ v₁ := by
-            apply ch₁
-            exact h
-          rcases eh with ⟨v₂, h₁, h₂⟩
-          have eh : Expr.ApproxEvals.Indexed P n (v :: ctx₃) body₃ v₂ := by
-            apply ch₂
-            exact h₁
-          rcases eh with ⟨v₃, h₃, h₄⟩
-          constructor
-          · exact h₃
-          · aesop
+        · intro k' hk' v v₁ h
+          have ah₁ : Expr.ApproxEvals.Indexed P k' (v :: ctx₂) body₂ v₁ := by
+            apply ch₁ <;> assumption
+          obtain ⟨v₂, _, h₂⟩ := ah₁
+          have ah₂ : Expr.ApproxEvals.Indexed P k' (v :: ctx₃) body₃ v₂ := by
+            apply ch₂ <;> assumption
+          obtain ⟨v₃, _, h₃⟩ := ah₂
+          have : k' ≤ n := by linarith
+          aesop
 
 lemma Value.Approx.refl {P v} : ⟨P⟩ v ≲ v := by
-  exists 0
+  intro n
   exact Value.Approx.Indexed.refl
 
 lemma Value.Approx.trans {P v₁ v₂ v₃} : ⟨P⟩ v₁ ≲ v₂ → ⟨P⟩ v₂ ≲ v₃ → ⟨P⟩ v₁ ≲ v₃ := by
   intros h₁ h₂
-  obtain ⟨n₁, h₁⟩ := h₁
-  obtain ⟨n₂, h₂⟩ := h₂
-  exists (n₁ + n₂)
-  have h₁ : Indexed P (n₁ + n₂) v₁ v₂ := by
-    apply Value.Approx.Indexed.monotone
-    · exact h₁
-    · aesop
-  have h₂ : Indexed P (n₁ + n₂) v₂ v₃ := by
-    apply Value.Approx.Indexed.monotone
-    · exact h₂
-    · aesop
+  intro n
   aesop (add unsafe apply Value.Approx.Indexed.trans)
 
 lemma Value.Approx.zip_refl {P p} {l : List Value} (h : p ∈ l.zip l) : ⟨P⟩ p.fst ≲ p.snd := by
@@ -151,69 +183,36 @@ lemma Value.Approx.constr_app_inv {P ctr_name args_rev args_rev'} :
   (∀ p ∈ List.zip args_rev args_rev', ⟨P⟩ Prod.fst p ≲ Prod.snd p) ∧
   args_rev.length = args_rev'.length := by
   intro h
-  rcases h with ⟨n, h⟩
   constructor
   case left =>
-    intros p hp
-    cases h
+    intros p hp n
+    cases (h (n + 1))
     case constr_app =>
-      constructor
       aesop
-    case refl =>
-      exact Value.Approx.zip_refl hp
   case right =>
-    aesop
+    cases (h 0)
+    case constr_app =>
+      aesop
 
 lemma Value.Approx.constr_app {P ctr_name args_rev args_rev'} :
   args_rev.length = args_rev'.length →
   (∀ p ∈ List.zip args_rev args_rev', ⟨P⟩ Prod.fst p ≲ Prod.snd p) →
   ⟨P⟩ Value.constr_app ctr_name args_rev ≲ Value.constr_app ctr_name args_rev' := by
-  intro hlen h
-  have h' : ∀ p ∈ List.zip args_rev args_rev', ∃ n, Value.Approx.Indexed P n (Prod.fst p) (Prod.snd p) := by
-    aesop
-  have nh : ∃ n, ∀ p ∈ List.zip args_rev args_rev', Value.Approx.Indexed P n (Prod.fst p) (Prod.snd p) := by
-    apply Juvix.Utils.monotone_ex_all
-    aesop (add unsafe apply Value.Approx.Indexed.monotone)
-    assumption
-  obtain ⟨n, h''⟩ := nh
-  exists (Nat.succ n)
-  constructor <;> assumption
+  intro hlen h n
+  aesop
 
 lemma Value.Approx.closure_inv {P ctx₁ body₁ ctx₂ body₂} :
   ⟨P⟩ Value.closure ctx₁ body₁ ≲ Value.closure ctx₂ body₂ →
   ∀ v v₁, ⟨P⟩ v :: ctx₁ ⊢ body₁ ↦ v₁ → ⟨P⟩ v :: ctx₂ ⊢ body₂ ↦≳ v₁ := by
-  intro h
-  rcases h with ⟨n, h⟩
-  cases h
-  case refl =>
-    intro v v₁ h
-    exists 0
-    constructor
-    exact h
-    exact Value.Approx.Indexed.refl
-  case closure n h =>
-    intro v v₁ h'
-    have h' : Expr.ApproxEvals.Indexed P n (v :: ctx₂) body₂ v₁ := by
-      apply h
-      exact h'
-    rcases h' with ⟨v₂, h₁, h₂⟩
-    constructor
+  intro h v v₁ h' n
+  cases (h n.succ)
+  case closure h =>
     aesop
 
 lemma Value.Approx.closure {P ctx₁ body₁ ctx₂ body₂} :
   (∀ v v₁, ⟨P⟩ v :: ctx₁ ⊢ body₁ ↦ v₁ → ⟨P⟩ v :: ctx₂ ⊢ body₂ ↦≳ v₁) →
   ⟨P⟩ Value.closure ctx₁ body₁ ≲ Value.closure ctx₂ body₂ := by
-  intro h
-  have h' : ∀ v v₁, ⟨P⟩ v :: ctx₁ ⊢ body₁ ↦ v₁ → ∃ n, Expr.ApproxEvals.Indexed P n (v :: ctx₂) body₂ v₁ := by
-    intros v v₁ h'
-    have h' : ⟨P⟩ v :: ctx₂ ⊢ body₂ ↦≳ v₁ := by
-      apply h
-      exact h'
-    rcases h' with ⟨n, v₂, h₂⟩
-    constructor
-    constructor
-    exact h₂
-    assumption
-  sorry
+  intro h n
+  aesop
 
 end Juvix.Core.Main

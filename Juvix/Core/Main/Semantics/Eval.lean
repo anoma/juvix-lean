@@ -55,6 +55,11 @@ inductive Eval (P : Program) : Context → Expr → Value → Prop where
 
 notation "⟨" P "⟩ " ctx " ⊢ " e " ↦ " v:40 => Eval P ctx e v
 
+def Terminating (P : Program) (ctx : Context) (e : Expr) : Prop :=
+  ∃ v, ⟨P⟩ ctx ⊢ e ↦ v
+
+notation "⟨" P "⟩ " ctx " ⊢ " e:40 " ↓" => Terminating P ctx e
+
 -- The evaluation relation is deterministic.
 theorem Eval.deterministic {P ctx e v₁ v₂} (h₁ : ⟨P⟩ ctx ⊢ e ↦ v₁) (h₂ : ⟨P⟩ ctx ⊢ e ↦ v₂) : v₁ = v₂ := by
   induction h₁ generalizing v₂ with
