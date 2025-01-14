@@ -37,4 +37,35 @@ theorem zip_refl_eq {α} (l : List α) (p : α × α) (h : p ∈ List.zip l l) :
     case cons.tail ht =>
       exact ih ht
 
+theorem zip_ex_mid3 {α} (l₁ l₂ l₃ : List α) (p : α × α)
+  (hl₁ : l₁.length = l₂.length)
+  (hl₂ : l₂.length = l₃.length)
+  (hp : p ∈ List.zip l₁ l₃) :
+  ∃ p₁ ∈ List.zip l₁ l₂,
+  ∃ p₂ ∈ List.zip l₂ l₃,
+  p.fst = p₁.fst ∧ p.snd = p₂.snd ∧ p₁.snd = p₂.fst := by
+  induction l₁ generalizing l₂ l₃ with
+  | nil =>
+    cases hp
+  | cons x xs ih =>
+    cases l₂ with
+    | nil =>
+      cases l₃
+      case nil =>
+        cases hp
+      case cons y ys =>
+        contradiction
+    | cons y ys =>
+      cases l₃ with
+      | nil =>
+        cases hp
+      | cons z zs =>
+        cases hp
+        case cons.head =>
+          simp
+        case cons.tail ht =>
+          simp at hl₁ hl₂
+          obtain ⟨p₁, hp₁, p₂, hp₂, h₁, h₂⟩ := ih ys zs hl₁ hl₂ ht
+          exact ⟨p₁, List.mem_cons_of_mem _ hp₁, p₂, List.mem_cons_of_mem _ hp₂, h₁, h₂⟩
+
 end Juvix.Utils
