@@ -3,7 +3,6 @@ import Juvix.Core.Main.Language.Base
 
 namespace Juvix.Core.Main
 
-
 inductive Context : Type where
   | hole : Context
   | app_left : Context → Expr → Context
