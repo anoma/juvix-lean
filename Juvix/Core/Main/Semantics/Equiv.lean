@@ -15,37 +15,37 @@ mutual
       args_rev.length = args_rev'.length →
       (∀ k < n, ∀ p ∈ List.zip args_rev args_rev', Value.Approx.Indexed P k (Prod.fst p) (Prod.snd p)) →
       Value.Approx.Indexed P n (Value.constr_app ctr_name args_rev) (Value.constr_app ctr_name args_rev')
-    | closure {n ctx₁ body₁ ctx₂ body₂} :
-      (∀ k < n, ∀ v v₁, ⟨P⟩ v :: ctx₁ ⊢ body₁ ↦ v₁ → Expr.ApproxEvals.Indexed P k (v :: ctx₂) body₂ v₁) →
-      Value.Approx.Indexed P n (Value.closure ctx₁ body₁) (Value.closure ctx₂ body₂)
+    | closure {n env₁ body₁ env₂ body₂} :
+      (∀ k < n, ∀ v v₁, ⟨P⟩ v :: env₁ ⊢ body₁ ↦ v₁ → Expr.ApproxEvals.Indexed P k (v :: env₂) body₂ v₁) →
+      Value.Approx.Indexed P n (Value.closure env₁ body₁) (Value.closure env₂ body₂)
 
   -- We need `Expr.ApproxEvals.Indexed` in order to avoid existential quantification in
   -- the definition of `Value.Approx.Indexed`.
   @[aesop unsafe [constructors, cases]]
-  inductive Expr.ApproxEvals.Indexed (P : Program) : Nat → Context → Expr → Value → Prop where
-    | equiv {n ctx e v₁} v₂ :
-      ⟨P⟩ ctx ⊢ e ↦ v₂ →
+  inductive Expr.ApproxEvals.Indexed (P : Program) : Nat → Env → Expr → Value → Prop where
+    | equiv {n env e v₁} v₂ :
+      ⟨P⟩ env ⊢ e ↦ v₂ →
       Value.Approx.Indexed P n v₂ v₁ →
-      Expr.ApproxEvals.Indexed P n ctx e v₁
+      Expr.ApproxEvals.Indexed P n env e v₁
 end
 
 def Value.Approx (P : Program) (v v' : Value) : Prop :=
   ∀ n, Value.Approx.Indexed P n v v'
 
-def Expr.ApproxEvals (P : Program) (ctx : Context) (e : Expr) (v : Value) : Prop :=
-  ∀ n, Expr.ApproxEvals.Indexed P n ctx e v
+def Expr.ApproxEvals (P : Program) (env : Env) (e : Expr) (v : Value) : Prop :=
+  ∀ n, Expr.ApproxEvals.Indexed P n env e v
 
 notation "⟨" P "⟩ " e " ≲ " e':40 => Value.Approx P e e'
 
-notation "⟨" P "⟩ " ctx " ⊢ " e " ↦≳ " v:40 => Expr.ApproxEvals P ctx e v
+notation "⟨" P "⟩ " env " ⊢ " e " ↦≳ " v:40 => Expr.ApproxEvals P env e v
 
-def Expr.Approx (P₁ : Program) (ctx₁ : Context) (e₁ : Expr) (P₂ : Program) (ctx₂ : Context) (e₂ : Expr) : Prop :=
-  (∀ v, ⟨P₁⟩ ctx₁ ⊢ e₁ ↦ v → ⟨P₂⟩ ctx₂ ⊢ e₂ ↦≳ v)
+def Expr.Approx (P₁ : Program) (env₁ : Env) (e₁ : Expr) (P₂ : Program) (env₂ : Env) (e₂ : Expr) : Prop :=
+  (∀ v, ⟨P₁⟩ env₁ ⊢ e₁ ↦ v → ⟨P₂⟩ env₂ ⊢ e₂ ↦≳ v)
 
-def Expr.Equiv (P₁ : Program) (ctx₁ : Context) (e₁ : Expr) (P₂ : Program) (ctx₂ : Context) (e₂ : Expr) : Prop :=
-  Expr.Approx P₁ ctx₁ e₁ P₂ ctx₂ e₂ ∧ Expr.Approx P₂ ctx₂ e₂ P₁ ctx₁ e₁
+def Expr.Equiv (P₁ : Program) (env₁ : Env) (e₁ : Expr) (P₂ : Program) (env₂ : Env) (e₂ : Expr) : Prop :=
+  Expr.Approx P₁ env₁ e₁ P₂ env₂ e₂ ∧ Expr.Approx P₂ env₂ e₂ P₁ env₁ e₁
 
-notation "⟨" P₁ "⟩ " ctx₁ " ⊢ " e₁ " ≋ " "⟨" P₂ "⟩ " ctx₂ " ⊢ " e₂:40 => Expr.Equiv P₁ ctx₁ e₁ P₂ ctx₂ e₂
+notation "⟨" P₁ "⟩ " env₁ " ⊢ " e₁ " ≋ " "⟨" P₂ "⟩ " env₂ " ⊢ " e₂:40 => Expr.Equiv P₁ env₁ e₁ P₂ env₂ e₂
 
 def Program.Equiv (P₁ P₂ : Program) : Prop :=
   ⟨P₁⟩ [] ⊢ P₁.main ≋ ⟨P₂⟩ [] ⊢ P₂.main
@@ -73,7 +73,7 @@ lemma Value.Approx.Indexed.refl {P n v} : Value.Approx.Indexed P n v v := by
         have : k = 0 := by linarith
         subst k
         contradiction
-    case closure ctx body =>
+    case closure env body =>
       constructor
       · intros
         have : k = 0 := by linarith
@@ -94,7 +94,7 @@ lemma Value.Approx.Indexed.refl {P n v} : Value.Approx.Indexed P n v v := by
         rw [h]
         have : k' ≤ n := by linarith
         aesop
-    case closure ctx body =>
+    case closure env body =>
       constructor
       · intros k' hk' v v'
         have : k' ≤ n := by linarith
@@ -122,9 +122,9 @@ lemma Value.Approx.Indexed.trans {P n v₁ v₂ v₃} : Value.Approx.Indexed P n
       cases h₂
       case constr_app args_rev₂ hlen₂ ch₂ =>
         constructor <;> aesop
-    case closure ctx₁ body₁ ctx₁' body₁' ch₁ =>
+    case closure env₁ body₁ env₁' body₁' ch₁ =>
       cases h₂
-      case closure ctx₂ body₂ ch₂ =>
+      case closure env₂ body₂ ch₂ =>
         constructor
         · intro k' hk' v v₁ h
           have : k = 0 := by linarith
@@ -150,15 +150,15 @@ lemma Value.Approx.Indexed.trans {P n v₁ v₂ v₃} : Value.Approx.Indexed P n
           obtain ⟨p₁, hp₁, p₂, hp₂, h₁, h₂, h₃⟩ := Utils.zip_ex_mid3 args_rev args_rev' args_rev'' p hlen₁ hlen₂ hp
           have : k' ≤ n := by linarith
           aesop
-    case closure ctx₁ body₁ ctx₂ body₂ ch₁ =>
+    case closure env₁ body₁ env₂ body₂ ch₁ =>
       cases h₂
-      case closure ctx₃ body₃ ch₂ =>
+      case closure env₃ body₃ ch₂ =>
         constructor
         · intro k' hk' v v₁ h
-          have ah₁ : Expr.ApproxEvals.Indexed P k' (v :: ctx₂) body₂ v₁ := by
+          have ah₁ : Expr.ApproxEvals.Indexed P k' (v :: env₂) body₂ v₁ := by
             apply ch₁ <;> assumption
           obtain ⟨v₂, _, h₂⟩ := ah₁
-          have ah₂ : Expr.ApproxEvals.Indexed P k' (v :: ctx₃) body₃ v₂ := by
+          have ah₂ : Expr.ApproxEvals.Indexed P k' (v :: env₃) body₃ v₂ := by
             apply ch₂ <;> assumption
           obtain ⟨v₃, _, h₃⟩ := ah₂
           have : k' ≤ n := by linarith
@@ -180,9 +180,9 @@ lemma Value.Approx.constr_app {P ctr_name args_rev args_rev'} :
   intro hlen h n
   aesop
 
-lemma Value.Approx.closure {P ctx₁ body₁ ctx₂ body₂} :
-  (∀ v v₁, ⟨P⟩ v :: ctx₁ ⊢ body₁ ↦ v₁ → ⟨P⟩ v :: ctx₂ ⊢ body₂ ↦≳ v₁) →
-  ⟨P⟩ Value.closure ctx₁ body₁ ≲ Value.closure ctx₂ body₂ := by
+lemma Value.Approx.closure {P env₁ body₁ env₂ body₂} :
+  (∀ v v₁, ⟨P⟩ v :: env₁ ⊢ body₁ ↦ v₁ → ⟨P⟩ v :: env₂ ⊢ body₂ ↦≳ v₁) →
+  ⟨P⟩ Value.closure env₁ body₁ ≲ Value.closure env₂ body₂ := by
   intro h n
   aesop
 
@@ -202,9 +202,9 @@ lemma Value.Approx.constr_app_inv {P ctr_name args_rev args_rev'} :
     case constr_app =>
       aesop
 
-lemma Value.Approx.closure_inv {P ctx₁ body₁ ctx₂ body₂} :
-  ⟨P⟩ Value.closure ctx₁ body₁ ≲ Value.closure ctx₂ body₂ →
-  ∀ v v₁, ⟨P⟩ v :: ctx₁ ⊢ body₁ ↦ v₁ → ⟨P⟩ v :: ctx₂ ⊢ body₂ ↦≳ v₁ := by
+lemma Value.Approx.closure_inv {P env₁ body₁ env₂ body₂} :
+  ⟨P⟩ Value.closure env₁ body₁ ≲ Value.closure env₂ body₂ →
+  ∀ v v₁, ⟨P⟩ v :: env₁ ⊢ body₁ ↦ v₁ → ⟨P⟩ v :: env₂ ⊢ body₂ ↦≳ v₁ := by
   intro h v v₁ h' n
   cases (h n.succ)
   case closure h =>
