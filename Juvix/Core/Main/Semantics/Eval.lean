@@ -55,10 +55,10 @@ inductive Eval (P : Program) : Env → Expr → Value → Prop where
 
 notation "⟨" P "⟩ " env " ⊢ " e " ↦ " v:40 => Eval P env e v
 
-def Terminating (P : Program) (env : Env) (e : Expr) : Prop :=
+def Eval.Defined (P : Program) (env : Env) (e : Expr) : Prop :=
   ∃ v, ⟨P⟩ env ⊢ e ↦ v
 
-notation "⟨" P "⟩ " env " ⊢ " e:40 " ↓" => Terminating P env e
+notation "⟨" P "⟩ " env " ⊢ " e:40 " ↓" => Eval.Defined P env e
 
 -- The evaluation relation is deterministic.
 theorem Eval.deterministic {P env e v₁ v₂} (h₁ : ⟨P⟩ env ⊢ e ↦ v₁) (h₂ : ⟨P⟩ env ⊢ e ↦ v₂) : v₁ = v₂ := by
