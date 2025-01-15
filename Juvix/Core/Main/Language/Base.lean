@@ -1,40 +1,45 @@
 
+import Batteries.Data.AssocList
+
 namespace Juvix.Core.Main
+
+open Batteries
 
 abbrev Name : Type := String
 
 inductive Constant : Type where
   | int : Int → Constant
   | string : String → Constant
-  deriving Inhabited, DecidableEq
+  deriving Inhabited, BEq, DecidableEq
 
-inductive BuiltinOp : Type where
-  | add_int : BuiltinOp
-  | sub_int : BuiltinOp
-  | mul_int : BuiltinOp
-  | div_int : BuiltinOp
-  deriving Inhabited, DecidableEq
+inductive BinaryOp : Type where
+  | add_int : BinaryOp
+  | sub_int : BinaryOp
+  | mul_int : BinaryOp
+  | div_int : BinaryOp
+  deriving Inhabited, BEq, DecidableEq
 
-mutual
-  inductive Expr : Type where
-    | var : Nat → Expr
-    | ident : Name → Expr
-    | const : Constant → Expr
-    | app : Expr → Expr → Expr
-    | builtin_app : (oper : BuiltinOp) → (args : List Expr) → Expr
-    | constr_app : (constr : Name) → (args : List Expr) → Expr
-    | lambda : (body : Expr) → Expr
-    | let : (value : Expr) → (body : Expr) → Expr
-    | case : (value : Expr) → (branches : List CaseBranch) → Expr
-    | unit : Expr
-    deriving Inhabited
-
-  structure CaseBranch where
-    constr : Name
-    body : Expr
-end
+inductive Expr : Type where
+  | var : Nat → Expr
+  | ident : Name → Expr
+  | constr : Name → Expr
+  | const : Constant → Expr
+  | app : Expr → Expr → Expr
+  | constr_app : Expr → Expr → Expr
+  | binop : (oper : BinaryOp) → (arg₁ arg₂ : Expr) → Expr
+  | lambda : (body : Expr) → Expr
+  | save : (value : Expr) → (body : Expr) → Expr
+  | branch : (constr : Name) → (body : Expr) → (next : Expr) → Expr
+  | default : (body : Expr) → Expr
+  | unit : Expr
+  deriving Inhabited, BEq, DecidableEq
 
 structure Program where
-  defs : List Expr
+  defs : AssocList Name Expr
+  main : Expr
+
+def Expr.mk_app (f : Expr) : List Expr → Expr
+  | [] => f
+  | x :: xs => Expr.mk_app (Expr.app f x) xs
 
 end Juvix.Core.Main
