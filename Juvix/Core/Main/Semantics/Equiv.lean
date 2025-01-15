@@ -173,10 +173,18 @@ lemma Value.Approx.trans {P v₁ v₂ v₃} : ⟨P⟩ v₁ ≲ v₂ → ⟨P⟩ 
   intro n
   aesop (add unsafe apply Value.Approx.Indexed.trans)
 
-lemma Value.Approx.zip_refl {P p} {l : List Value} (h : p ∈ l.zip l) : ⟨P⟩ p.fst ≲ p.snd := by
-  have h : p.fst = p.snd := Utils.zip_refl_eq l p h
-  rewrite [h]
-  exact Value.Approx.refl
+lemma Value.Approx.constr_app {P ctr_name args_rev args_rev'} :
+  args_rev.length = args_rev'.length →
+  (∀ p ∈ List.zip args_rev args_rev', ⟨P⟩ Prod.fst p ≲ Prod.snd p) →
+  ⟨P⟩ Value.constr_app ctr_name args_rev ≲ Value.constr_app ctr_name args_rev' := by
+  intro hlen h n
+  aesop
+
+lemma Value.Approx.closure {P ctx₁ body₁ ctx₂ body₂} :
+  (∀ v v₁, ⟨P⟩ v :: ctx₁ ⊢ body₁ ↦ v₁ → ⟨P⟩ v :: ctx₂ ⊢ body₂ ↦≳ v₁) →
+  ⟨P⟩ Value.closure ctx₁ body₁ ≲ Value.closure ctx₂ body₂ := by
+  intro h n
+  aesop
 
 lemma Value.Approx.constr_app_inv {P ctr_name args_rev args_rev'} :
   ⟨P⟩ Value.constr_app ctr_name args_rev ≲ Value.constr_app ctr_name args_rev' →
@@ -194,13 +202,6 @@ lemma Value.Approx.constr_app_inv {P ctr_name args_rev args_rev'} :
     case constr_app =>
       aesop
 
-lemma Value.Approx.constr_app {P ctr_name args_rev args_rev'} :
-  args_rev.length = args_rev'.length →
-  (∀ p ∈ List.zip args_rev args_rev', ⟨P⟩ Prod.fst p ≲ Prod.snd p) →
-  ⟨P⟩ Value.constr_app ctr_name args_rev ≲ Value.constr_app ctr_name args_rev' := by
-  intro hlen h n
-  aesop
-
 lemma Value.Approx.closure_inv {P ctx₁ body₁ ctx₂ body₂} :
   ⟨P⟩ Value.closure ctx₁ body₁ ≲ Value.closure ctx₂ body₂ →
   ∀ v v₁, ⟨P⟩ v :: ctx₁ ⊢ body₁ ↦ v₁ → ⟨P⟩ v :: ctx₂ ⊢ body₂ ↦≳ v₁ := by
@@ -208,11 +209,5 @@ lemma Value.Approx.closure_inv {P ctx₁ body₁ ctx₂ body₂} :
   cases (h n.succ)
   case closure h =>
     aesop
-
-lemma Value.Approx.closure {P ctx₁ body₁ ctx₂ body₂} :
-  (∀ v v₁, ⟨P⟩ v :: ctx₁ ⊢ body₁ ↦ v₁ → ⟨P⟩ v :: ctx₂ ⊢ body₂ ↦≳ v₁) →
-  ⟨P⟩ Value.closure ctx₁ body₁ ≲ Value.closure ctx₂ body₂ := by
-  intro h n
-  aesop
 
 end Juvix.Core.Main
