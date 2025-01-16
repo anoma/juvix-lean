@@ -1,5 +1,6 @@
 
 import Batteries.Data.AssocList
+import Mathlib.Data.Set.Basic
 
 namespace Juvix.Core.Main
 
@@ -43,5 +44,31 @@ infixr:80 "@@" => Expr.app
 def Expr.mk_app (f : Expr) : List Expr → Expr
   | [] => f
   | x :: xs => Expr.mk_app (Expr.app f x) xs
+
+-- The domain of a program is the set of names of its definitions.
+def Program.dom (p : Program) : Set Name :=
+  {x | x ∈ p.defs.toList.map Prod.fst}
+
+-- The domain of an expression is the set of identifiers referenced in the
+-- expression.
+@[simp]
+def Expr.dom (e : Expr) : Set Name :=
+  match e with
+  | Expr.var _ => ∅
+  | Expr.ident n => {n}
+  | Expr.constr _ => ∅
+  | Expr.const _ => ∅
+  | Expr.app f x => f.dom ∪ x.dom
+  | Expr.constr_app c x => c.dom ∪ x.dom
+  | Expr.binop _ x y => x.dom ∪ y.dom
+  | Expr.lambda b => b.dom
+  | Expr.save v b => v.dom ∪ b.dom
+  | Expr.branch _ b n => b.dom ∪ n.dom
+  | Expr.default b => b.dom
+  | Expr.unit => ∅
+
+def Program.dom_ok (p : Program) : Prop :=
+  p.main.dom ⊆ p.dom ∧
+  ∀ (n : Name) (e : Expr), p.defs.find? n = some e → e.dom ⊆ p.dom
 
 end Juvix.Core.Main

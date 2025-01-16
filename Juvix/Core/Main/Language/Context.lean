@@ -35,4 +35,20 @@ def Context.subst (C : Context) (e : Expr) : Expr :=
   | Context.branch_right constr body C' => Expr.branch constr body (C'.subst e)
   | Context.default C' => Expr.default (C'.subst e)
 
+def Context.dom (C : Context) : Set Name :=
+  match C with
+  | Context.hole => ∅
+  | Context.app_left C' e => C'.dom ∪ e.dom
+  | Context.app_right e C' => C'.dom ∪ e.dom
+  | Context.constr_app_left C' e => C'.dom ∪ e.dom
+  | Context.constr_app_right e C' => C'.dom ∪ e.dom
+  | Context.binop_left _ C₁ e => C₁.dom ∪ e.dom
+  | Context.binop_right _ e C₂ => C₂.dom ∪ e.dom
+  | Context.lambda C' => C'.dom
+  | Context.save_left C' e => C'.dom ∪ e.dom
+  | Context.save_right e C' => C'.dom ∪ e.dom
+  | Context.branch_left _ C' e => C'.dom ∪ e.dom
+  | Context.branch_right _ e C' => C'.dom ∪ e.dom
+  | Context.default C' => C'.dom
+
 end Juvix.Core.Main

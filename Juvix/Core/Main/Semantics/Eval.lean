@@ -60,16 +60,19 @@ def Eval.Defined (P : Program) (env : Env) (e : Expr) : Prop :=
 
 notation "⟨" P "⟩ " env " ⊢ " e:40 " ↓" => Eval.Defined P env e
 
+def Eval.dom_ok (P : Program) (env : Env) (e : Expr) : Prop :=
+  P.dom_ok ∧ env.dom ⊆ P.dom ∧ e.dom ⊆ P.dom
+
 -- The evaluation relation is deterministic.
 theorem Eval.deterministic {P env e v₁ v₂} (h₁ : ⟨P⟩ env ⊢ e ↦ v₁) (h₂ : ⟨P⟩ env ⊢ e ↦ v₂) : v₁ = v₂ := by
   induction h₁ generalizing v₂ with
   | eval_var =>
-    cases h₂ <;> cc
+    cases h₂; cc
   | eval_ident _ _ ih =>
     specialize (@ih v₂)
-    cases h₂ <;> cc
+    cases h₂; cc
   | eval_const =>
-    cases h₂ <;> cc
+    cases h₂; cc
   | eval_app _ _ _ ih ih' aih =>
     cases h₂ with
     | eval_app hval harg =>
@@ -90,7 +93,7 @@ theorem Eval.deterministic {P env e v₁ v₂} (h₁ : ⟨P⟩ env ⊢ e ↦ v�
       specialize (ih₂ h₂)
       simp_all
   | eval_lambda =>
-    cases h₂ <;> cc
+    cases h₂; cc
   | eval_save _ _ ih ih' =>
     cases h₂ with
     | eval_save hval hbody =>
@@ -106,8 +109,45 @@ theorem Eval.deterministic {P env e v₁ v₂} (h₁ : ⟨P⟩ env ⊢ e ↦ v�
     cases h₂ <;> cc
   | eval_default _ ih =>
     specialize (@ih v₂)
-    cases h₂ <;> cc
+    cases h₂; cc
   | eval_unit =>
-    cases h₂ <;> cc
+    cases h₂; cc
+
+lemma Eval.dom_sub {P env e v} :
+  Eval.dom_ok P env e →
+  ⟨P⟩ env ⊢ e ↦ v → v.dom ⊆ P.dom := by
+  intro hdom h
+  simp [Eval.dom_ok, Program.dom_ok] at hdom
+  obtain ⟨_, henv, he⟩ := hdom
+  induction h
+  case eval_var env' idx val h =>
+    have h₁ : val ∈ env' := by
+      rw [@List.mem_iff_getElem?]
+      aesop
+    have h₂ := Value.dom_env val env' h₁
+    exact fun a a₁ ↦ henv (h₂ a₁)
+  case eval_const =>
+    simp
+  case eval_ident =>
+    aesop
+  case eval_app =>
+    aesop
+  case eval_binop =>
+    simp
+  case eval_constr_app =>
+    aesop
+  case eval_lambda =>
+    aesop
+  case eval_save =>
+    aesop
+  case eval_branch_matches h =>
+    rw [Value.List.dom_append] at h
+    aesop
+  case eval_branch_fails =>
+    aesop
+  case eval_default =>
+    aesop
+  case eval_unit =>
+    simp
 
 end Juvix.Core.Main
