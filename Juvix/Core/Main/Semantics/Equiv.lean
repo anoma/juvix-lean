@@ -404,7 +404,6 @@ lemma Expr.Approx.refl {P env} e : ⟨P⟩ env ⊢ e ≲ ⟨P⟩ env ⊢ e := by
   intro v
   aesop
 
-/-
 lemma Expr.Approx.trans {P₁ env₁ e₁ P₂ env₂ e₂ P₃ env₃ e₃} :
   ⟨P₁⟩ env₁ ⊢ e₁ ≲ ⟨P₂⟩ env₂ ⊢ e₂ → ⟨P₂⟩ env₂ ⊢ e₂ ≲ ⟨P₃⟩ env₃ ⊢ e₃ → ⟨P₁⟩ env₁ ⊢ e₁ ≲ ⟨P₃⟩ env₃ ⊢ e₃ := by
   intros h₁ h₂ v hv
@@ -414,7 +413,11 @@ lemma Expr.Approx.trans {P₁ env₁ e₁ P₂ env₂ e₂ P₃ env₃ e₃} :
     have h₂' := h₂ v' hv'
     cases (Expr.ApproxEvals.invert h₂')
     case equiv v'' hv'' ha' =>
-      sorry
--/
+      intro n
+      constructor
+      · assumption
+      · apply Value.Approx.Indexed.trans (P₂ := P₂) (v₂ := v')
+        · aesop
+        · aesop
 
 end Juvix.Core.Main
